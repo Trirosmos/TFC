@@ -1,0 +1,6 @@
+audio-env/
+compiler/
+crepe.keras/
+CREPE/
+edge-tpu-env/
+edge-tpu-env-backup/
