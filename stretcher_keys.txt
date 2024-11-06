@@ -1,0 +1,9 @@
+dict_keys(['__init__', '__new__', '__doc__', 
+'__module__', 'time_ratio', 'pitch_scale',
+ 'formant_scale', 'channels', 'engine_version', 
+ 'set_frequency_cutoff', 'get_frequency_cutoff', 'set_transients_options',
+  'set_detector_options', 'set_phase_options', 'set_formant_options', 'set_pitch_options',
+	 'set_expected_input_duration', 'set_max_process_size', 'set_keyframe_map', 'set_logging_level',
+	  'is_done', 'available', 'get_preferred_start_pad', 'get_start_delay', 'get_samples_required', 
+		'get_input_increment', 'get_output_increment', 'get_phase_reset_curve', 'get_exact_time_points', '
+		get_process_size_limit', 'study', 'process', 'retrieve', 'retrieve_available', 'reset', 'calculate_stretch'])

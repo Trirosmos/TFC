@@ -220,12 +220,12 @@ def get_activation_tpu(audio, sr, instancia, center=True, step_size=10,
 	frames -= np.mean(frames, axis=1)[:, np.newaxis]
 	frames /= np.clip(np.std(frames, axis=1)[:, np.newaxis], 1e-8, None)
   
+	instancia.allocate_tensors()
 	output = []
 	output_details = instancia.get_output_details()[0]
 	input_details = instancia.get_input_details()[0]
      
 	instancia.resize_tensor_input(input_details['index'], [len(frames), 1024])
-	instancia.allocate_tensors()
      
 	instancia.set_tensor(input_details['index'], frames)
 	instancia.invoke()
