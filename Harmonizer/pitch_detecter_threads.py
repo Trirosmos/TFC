@@ -7,17 +7,20 @@ import pyaudio
 
 import numpy as np
 
-from consts import sr, samples_per_block, amostras_bloco, amostras_pitch, LEN
+from consts import sr, samples_per_block, amostras_pitch, LEN, num_voices
 
-crepe_pitch_out_queue = queue.Queue()
+crepe_pitch_out_queues = []
 crepe_audio_queue = queue.Queue()
+
+for i in range(0, num_voices):
+	crepe_pitch_out_queues.append(queue.Queue())
 
 def crepe_get_audio(p):
 	stream = p.open(
 		format=pyaudio.paFloat32, channels=1, rate=sr, input=True, frames_per_buffer = samples_per_block
 	)
 
-	for i in range(int(LEN * sr / samples_per_block)):
+	while(True):
 		novo_bloco = np.frombuffer(stream.read(samples_per_block), dtype=np.float32).reshape(-1, )
 		crepe_audio_queue.put(novo_bloco)
 
@@ -39,4 +42,5 @@ def get_f0():
 		#_, frequency, confidence, activation = predict(taken_chunk, sr, "medium", viterbi=True, center=True, step_size=(latencia_pitch * 1000), verbose=0)
 		_, frequency, confidence, activation = predict_tpu(novo_bloco, sr, interpreter, viterbi=True, center=False, step_size = int(1000/(16000 / amostras_pitch)), verbose=0)
 		fim = time.time()
-		crepe_pitch_out_queue.put([frequency[0], confidence[0]])
+		for q in crepe_pitch_out_queues:
+			q.put([frequency[0], confidence[0]])

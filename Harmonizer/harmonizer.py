@@ -1,28 +1,23 @@
-import os
-import numpy as np
-import matplotlib.pyplot as plt
-import random
-import tensorflow as tf
-from numpy.lib.stride_tricks import as_strided
-from scipy.io import wavfile
-
 import pyaudio
-from pylibrb import RubberBandStretcher, Option, create_audio_array
-import librosa
+from pynput import keyboard
 
-from threading import Thread
-import queue
+from threading import Thread, Timer
 
-import time
-
-from consts import sr, samples_per_block, amostras_bloco, amostras_pitch, LEN
-
-from pitch_detect_threads import crepe_get_audio, get_f0, crepe_pitch_out_queue
+from pitch_detecter_threads import crepe_get_audio, get_f0
 from pitch_shifter_threads import pitch_shift, feedback
+from voice_manager_threads import print_envelope_state, run_envelopes, on_press, on_release
+
+from utils import delete_last_line
+
+from consts import num_voices
 
 p = pyaudio.PyAudio()
 
-print(samples_per_block)
+for i in range(0, 100):
+	delete_last_line()
+
+print_envelope_state()
+run_envelopes()
 
 t1 = Thread(target=crepe_get_audio, args = (p,))
 t1.start()
@@ -30,15 +25,23 @@ t1.start()
 t2 = Thread(target=get_f0)
 t2.start()
 
-t3 = Thread(target=pitch_shift, args = (p,))
-t3.start()
+for i in range(0, num_voices):
+	t = Thread(target=pitch_shift, args = (p, i))
+	t.start()
 
 t4 = Thread(target=feedback, args = (p,))
 t4.start()
+
+with keyboard.Listener(
+        on_press=on_press,
+				on_release=on_release) as listener:
+    listener.join()
 
 t1.join()
 t2.join()
 t3.join()
 t4.join()
 p.terminate()
+
+
 

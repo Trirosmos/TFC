@@ -1,12 +1,14 @@
 import queue
 import pyaudio
 
-from pitch_detect_threads import crepe_pitch_out_queue
-from consts import sr, samples_per_block, amostras_bloco, amostras_pitch, LEN
+from pitch_detecter_threads import crepe_pitch_out_queues
+from consts import sr, amostras_bloco, LEN
 from pylibrb import RubberBandStretcher, Option, create_audio_array
 
 import numpy as np
 import time
+
+from voice_manager_threads import voice_envelope, voice_note
 
 def feedback(p):
 	stream = p.open(
@@ -16,14 +18,17 @@ def feedback(p):
     format=pyaudio.paFloat32, channels=1, rate=sr, output=True, frames_per_buffer = amostras_bloco
 	)
 
-	for i in range(int(LEN * sr / amostras_bloco)):
+	while(True):
 		novo_bloco = np.frombuffer(stream.read(amostras_bloco), dtype=np.float32).reshape(-1, )
 		player.write(novo_bloco, amostras_bloco)
 
 	stream.stop_stream()
 	stream.close()
 
-def pitch_shift(p):
+def pitch_shift(p, v):
+	global voice_envelope
+	global voice_note
+
 	stream = p.open(
 		format=pyaudio.paFloat32, channels=1, rate=sr, input=True, frames_per_buffer = amostras_bloco
 	)
@@ -43,15 +48,18 @@ def pitch_shift(p):
 	f0 = [110, 1]
 	last_timestamp = time.time()
 
-	for i in range(int(LEN * sr / amostras_bloco)):
+	while(True):
 		while(stretcher.available() < amostras_bloco):
-			data = np.expand_dims(np.frombuffer(stream.read(amostras_bloco), dtype=np.float32), axis = 0)
+			data = np.expand_dims(np.frombuffer(stream.read(amostras_bloco), dtype=np.float32), axis = 0) * np.exp(voice_envelope[v])
 			stretcher.process(data, False)  
+
+			freq = 440 * ((2**(1/12))**(-21 + voice_note[v]))
+
 			if(f0[0] > 0 and f0[1] > 0.3):
-				stretcher.pitch_scale = 110/f0[0]
+				stretcher.pitch_scale = freq/f0[0]
 
 			try:
-				f0 = crepe_pitch_out_queue.get(False)
+				f0 = crepe_pitch_out_queues[v].get(False)
 			except queue.Empty:
 				pass
 
