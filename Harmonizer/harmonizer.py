@@ -29,18 +29,17 @@ for i in range(0, num_voices):
 	t = Thread(target=pitch_shift, args = (p, i))
 	t.start()
 
-t4 = Thread(target=feedback, args = (p,))
-t4.start()
+t3 = Thread(target=feedback, args = (p,))
+t3.start()
 
-with keyboard.Listener(
-        on_press=on_press,
-				on_release=on_release) as listener:
-    listener.join()
+listener = keyboard.Listener(
+    on_press=on_press,
+    on_release=on_release)
+listener.start()
 
 t1.join()
 t2.join()
 t3.join()
-t4.join()
 p.terminate()
 
 
