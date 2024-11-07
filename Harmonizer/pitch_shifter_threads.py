@@ -19,7 +19,7 @@ def feedback(p):
 	)
 
 	while(True):
-		novo_bloco = np.frombuffer(stream.read(amostras_bloco), dtype=np.float32).reshape(-1, )
+		novo_bloco = np.frombuffer(stream.read(amostras_bloco), dtype=np.float32).reshape(-1, ) * 0.6
 		player.write(novo_bloco, amostras_bloco)
 
 	stream.stop_stream()
