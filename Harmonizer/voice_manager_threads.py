@@ -1,31 +1,28 @@
 from threading import Timer
 from utils import delete_last_line
 from consts import num_voices
+import rtmidi
 
-key_mapping = ["z", "s", "x", "d", "c", "v", "g", "b", "h", "n", "j", "m", #Primeira oitava
-							 "q", "2", "w", "3", "e", "r", "5", "t", "6", "y", "7", "u", "i", "9", "o", "0", "p"] #Segunda oitava
-key_state = []
-
+active_notes = []
 envelope_minimum = -20
 
 voice_state = []
 voice_envelope = []
 voice_note = []
 
-attack = 0.2
+attack = 0.02
 decay = 0.2
 sustain = 0.6
 release = 0.5
 
 envelope_update_period = 0.005 #Em segundos
 
-for k in key_mapping:
-	key_state.append(False)
+midiin = rtmidi.RtMidiIn()
 
 for v in range(num_voices):
 	voice_state.append("idle")
 	voice_envelope.append(envelope_minimum)
-	voice_note.append(0)
+	voice_note.append(-1)
 
 def print_envelope_state():
 	global voice_envelope
@@ -67,44 +64,47 @@ def run_envelopes():
 
 	Timer(envelope_update_period,run_envelopes,[]).start()
 
-def inicia_nota(tecla):
+
+def inicia_nota(indice_nota):
 	try:
-		indice_nota = key_mapping.index(tecla)
-		if(key_state[indice_nota] == False):
-			try:
-				idle_index = voice_state.index("idle")
-				voice_state[idle_index] = "attack"
-				voice_note[idle_index] = indice_nota
-			except ValueError:
-				pass
-		key_state[indice_nota] = True
+		idle_index = voice_state.index("idle")
+		voice_state[idle_index] = "attack"
+		voice_note[idle_index] = indice_nota
+
+		delete_last_line()
+		delete_last_line()
+		print(voice_note)
+		print(voice_state)
 	except ValueError:
 		pass
 
-def finaliza_nota(tecla):
+def finaliza_nota(indice_nota):
 	try:
-		indice_nota = key_mapping.index(tecla)
-		if(key_state[indice_nota] == True):
-			try:
-				active_index = voice_note.index(indice_nota)
-				voice_state[active_index] = "release"
-			except ValueError:
-				pass
-		key_state[indice_nota] = False
+		active_index = voice_note.index(indice_nota)
+
+		voice_note[active_index] = -1
+		voice_state[active_index] = "release"
+
+		delete_last_line()
+		delete_last_line()
+		print(voice_note)
+		print(voice_state)
 	except ValueError:
 		pass
 	
-
-def on_press(key):
-	try:
-		tecla = key.char
-		inicia_nota(tecla)
-	except AttributeError:
-		pass
-
-def on_release(key):
-	try:
-		tecla = key.char
-		finaliza_nota(tecla)
-	except AttributeError:
-		pass
+def midi_listen():
+	ports = range(midiin.getPortCount())
+	if ports:
+		for i in ports:
+			print(midiin.getPortName(i))
+		print("Opening port 0!") 
+		midiin.openPort(0)
+		while True:
+			m = midiin.getMessage(250) # some timeout in ms
+			if m:
+				if(m.isNoteOn()):
+					inicia_nota(m.getNoteNumber())
+				if(m.isNoteOff()):
+					finaliza_nota(m.getNoteNumber())
+	else:
+		print("Nenhuma entrada MIDI encontrada")

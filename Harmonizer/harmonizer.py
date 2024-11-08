@@ -5,7 +5,7 @@ from threading import Thread, Timer
 
 from pitch_detecter_threads import crepe_get_audio, get_f0
 from pitch_shifter_threads import pitch_shift, feedback
-from voice_manager_threads import print_envelope_state, run_envelopes, on_press, on_release
+from voice_manager_threads import print_envelope_state, run_envelopes, midi_listen
 
 from utils import delete_last_line
 
@@ -32,14 +32,15 @@ for i in range(0, num_voices):
 t3 = Thread(target=feedback, args = (p,))
 t3.start()
 
-listener = keyboard.Listener(
-    on_press=on_press,
-    on_release=on_release)
-listener.start()
+t4 = Thread(target=midi_listen)
+t4.start()
 
 t1.join()
 t2.join()
 t3.join()
+t4.join()
+
+
 p.terminate()
 
 

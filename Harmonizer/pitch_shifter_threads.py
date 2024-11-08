@@ -53,15 +53,15 @@ def pitch_shift(p, v):
 			data = np.expand_dims(np.frombuffer(stream.read(amostras_bloco), dtype=np.float32), axis = 0) * np.exp(voice_envelope[v])
 			stretcher.process(data, False)  
 
-			freq = 440 * ((2**(1/12))**(-21 - 12 + voice_note[v]))
-
-			if(f0[0] > 0 and f0[1] > 0.3):
-				stretcher.pitch_scale = freq/f0[0]
-
 			try:
 				f0 = crepe_pitch_out_queues[v].get(False)
 			except queue.Empty:
 				pass
+
+			if(voice_note[v] != -1):
+				freq = 440 * ((2**(1/12))**(-69 + 12 + voice_note[v]))
+				if(f0[0] > 0 and f0[1] > 0.3):
+					stretcher.pitch_scale = freq/f0[0]
 
 		saida = stretcher.retrieve(amostras_bloco)                
 		player.write(saida, amostras_bloco)
