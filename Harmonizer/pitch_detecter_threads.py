@@ -22,6 +22,7 @@ def crepe_get_audio(p):
 
 	while(True):
 		novo_bloco = np.frombuffer(stream.read(samples_per_block), dtype=np.float32).reshape(-1, )
+		novo_bloco = novo_bloco / (np.max(np.abs(novo_bloco)) + np.finfo(float).eps)
 		crepe_audio_queue.put(novo_bloco)
 
 	stream.stop_stream()

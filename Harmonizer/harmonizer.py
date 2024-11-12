@@ -4,7 +4,7 @@ from pynput import keyboard
 from threading import Thread, Timer
 
 from pitch_detecter_threads import crepe_get_audio, get_f0
-from pitch_shifter_threads import pitch_shift, feedback
+from pitch_shifter_threads import pitch_shift, feedback, grava_queues
 from voice_manager_threads import print_envelope_state, run_envelopes, midi_listen
 
 from utils import delete_last_line
@@ -34,6 +34,22 @@ t3.start()
 
 t4 = Thread(target=midi_listen)
 t4.start()
+
+def on_press(key):
+	global grava_audio
+	global mutex
+	try:
+		if(key.char == "m"):    
+			for q in grava_queues:
+				q.put(True)
+	except AttributeError:
+		pass
+
+
+# Collect events until released
+with keyboard.Listener(
+        on_press=on_press) as listener:
+    listener.join()
 
 t1.join()
 t2.join()

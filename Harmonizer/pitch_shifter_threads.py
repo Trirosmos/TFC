@@ -2,13 +2,21 @@ import queue
 import pyaudio
 
 from pitch_detecter_threads import crepe_pitch_out_queues
-from consts import sr, amostras_bloco, LEN
+from consts import sr, amostras_bloco, LEN, num_voices
 from pylibrb import RubberBandStretcher, Option, create_audio_array
+from threading import Lock
+
+from scipy.io import wavfile
 
 import numpy as np
 import time
 
 from voice_manager_threads import voice_envelope, voice_note
+
+grava_queues = []
+
+for i in range(0, num_voices):
+	grava_queues.append(queue.Queue())
 
 def feedback(p):
 	stream = p.open(
@@ -28,6 +36,7 @@ def feedback(p):
 def pitch_shift(p, v):
 	global voice_envelope
 	global voice_note
+	global grava_audio
 
 	stream = p.open(
 		format=pyaudio.paFloat32, channels=1, rate=sr, input=True, frames_per_buffer = amostras_bloco
@@ -48,6 +57,8 @@ def pitch_shift(p, v):
 	f0 = [110, 1]
 	last_timestamp = time.time()
 
+	audio_gerado = np.empty(1)
+
 	while(True):
 		while(stretcher.available() < amostras_bloco):
 			data = np.expand_dims(np.frombuffer(stream.read(amostras_bloco), dtype=np.float32), axis = 0) * np.exp(voice_envelope[v])
@@ -65,6 +76,15 @@ def pitch_shift(p, v):
 
 		saida = stretcher.retrieve(amostras_bloco)                
 		player.write(saida, amostras_bloco)
+		audio_gerado = np.concatenate((audio_gerado, saida.squeeze()))
+
+		try:
+			grava_audio = grava_queues[v].get(False)
+			wavfile.write("voz_" + str(v) + ".wav", sr, audio_gerado)
+			print("Salvou arquivo da voz " + str(v))
+			break
+		except queue.Empty:
+			pass
 
 	stream.stop_stream()
 	stream.close()

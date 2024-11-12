@@ -13,7 +13,7 @@ voice_note = []
 attack = 0.02
 decay = 0.2
 sustain = 0.6
-release = 0.5
+release = 0.02
 
 envelope_update_period = 0.005 #Em segundos
 
@@ -73,8 +73,7 @@ def inicia_nota(indice_nota):
 
 		delete_last_line()
 		delete_last_line()
-		print(voice_note)
-		print(voice_state)
+		print("Recebeu nota " + str(indice_nota))
 	except ValueError:
 		pass
 
@@ -87,8 +86,7 @@ def finaliza_nota(indice_nota):
 
 		delete_last_line()
 		delete_last_line()
-		print(voice_note)
-		print(voice_state)
+		print("Recebeu nota " + str(indice_nota))
 	except ValueError:
 		pass
 	
@@ -99,6 +97,7 @@ def midi_listen():
 			print(midiin.getPortName(i))
 		print("Opening port 0!") 
 		midiin.openPort(0)
+		midiin.openPort(1)
 		while True:
 			m = midiin.getMessage(250) # some timeout in ms
 			if m:
