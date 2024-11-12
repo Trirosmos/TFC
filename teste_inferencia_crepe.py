@@ -106,7 +106,7 @@ def to_local_average_cents(salience, center=None):
         product_sum = np.sum(
             salience * to_local_average_cents.cents_mapping[start:end])
         weight_sum = np.sum(salience)
-        return product_sum / weight_sum
+        return product_sum / (weight_sum + 2.22044604925e-16)
     if salience.ndim == 2:
         return np.array([to_local_average_cents(salience[i, :]) for i in
                          range(salience.shape[0])])
@@ -204,12 +204,7 @@ def get_activation(audio, sr, model_capacity='full', center=True, step_size=10,
     frames /= np.clip(np.std(frames, axis=1)[:, np.newaxis], 1e-8, None)
 
     # run prediction and convert the frequency bin weights to Hz
-    inicio = time.perf_counter()
     output = model.predict(frames, verbose=verbose)
-    fim = time.perf_counter()
-    print("Levou " + str((fim - inicio) / len(frames)) + " segundos por frame pra rodar na CPU")
-    
-    print("Shape da ativação do modelo original: " + str(np.shape(output)))
     return output
 
 def get_activation_tpu(audio, sr, instancia, center=True, step_size=10,
@@ -249,9 +244,6 @@ def get_activation_tpu(audio, sr, instancia, center=True, step_size=10,
 	instancia.set_tensor(input_details['index'], frames)
 	instancia.invoke()
 	output = instancia.get_tensor(output_details['index'])
-                  
-	print("Shape da ativação do modelo quantizado: " + str(np.shape(output)))
-
 	return output
 
 
@@ -344,7 +336,7 @@ def get_pitch_tpu(audio, sr, instancia):
 	plt.plot(tempo, freq, color = "red", label = "Saída TPU", alpha = 0.3)
 
 interpreter = edgetpu.make_interpreter("crepe_medium_edgetpu.tflite")
-#interpreter.allocate_tensors()
+interpreter.allocate_tensors()
 
 #escolhido = random.choice(os.listdir(directory))
 #escolhido = os.fsdecode(escolhido)
@@ -359,47 +351,75 @@ def delete_last_line():
     #delete last line
     os.sys.stdout.write('\x1b[2K')
     
-delete_last_line()
-delete_last_line()
-delete_last_line()
-delete_last_line()
-delete_last_line()
-delete_last_line()
-delete_last_line()
-delete_last_line()
-delete_last_line()
-delete_last_line()
+for i in range(100):
+	delete_last_line()
+     
+def compara_input_aleatorio():
+	media_tpu = []
+	media_cpu = []
+	tamanhos_entrada = []
+     
+	for c in range(1, 20):
+		medidas_tpu = []
+		medidas_cpu = []
+		tamanho_vetor_entrada = int(1024 + ((102400 - 1024)/20) * c)
+          
+		for t in range(0, 10):
+			entrada = (np.random.rand(tamanho_vetor_entrada) * 2) - 1
+               
+			inicio = time.perf_counter()
+			predict(entrada, 16000, "medium", viterbi=True, center=True, step_size=10, verbose=0)
+			fim = time.perf_counter()
+               
+			medidas_cpu.append(fim - inicio)
+               
+			inicio = time.perf_counter()
+			predict_tpu(entrada, 16000, interpreter, viterbi=True, center=True, step_size=10, verbose=0)
+			fim = time.perf_counter()
+               
+			medidas_tpu.append(fim - inicio)
+                  
+		media_cpu.append(np.mean(np.array(medidas_cpu)))           
+		media_tpu.append(np.mean(np.array(medidas_tpu)))
+		tamanhos_entrada.append(c * 1024)
+		print("Tempos calculados para entrada de tamanho " + str(tamanho_vetor_entrada))
+		print("\n")
+          
+	return media_cpu, media_tpu, tamanhos_entrada
+     
+def roda_arquivo_especifico():
+	escolhido = "01-AchGottundHerr-violin.wav"
+	sr, audio = wavfile.read("Representative Dataset/" + escolhido)
 
-escolhido = "01-AchGottundHerr-violin.wav"
-sr, audio = wavfile.read("Representative Dataset/" + escolhido)
+	print("Dummy inference")
+	predict_tpu(np.zeros(1024), 44100, interpreter, True, True, 10, 1)
+	print("\n \n")
 
-print("Dummy inference")
-predict_tpu(np.zeros(1024), 44100, interpreter, True, True, 10, 1)
-print("\n \n")
+	inicio = time.perf_counter()
+	get_pitch(audio, sr)
+	fim = time.perf_counter()
 
-inicio = time.perf_counter()
-get_pitch(audio, sr)
-fim = time.perf_counter()
+	print("Levou " + str((fim - inicio)) + " segundos pra rodar na CPU")
 
-print("Levou " + str((fim - inicio)) + " segundos pra rodar na CPU")
+	inicio = time.perf_counter()
+	get_pitch_tpu(audio, sr, interpreter)
+	fim = time.perf_counter()
 
-inicio = time.perf_counter()
-get_pitch_tpu(audio, sr, interpreter)
-fim = time.perf_counter()
+	print("Levou " + str((fim - inicio)) + " segundos pra rodar na TPU")
 
-print("Levou " + str((fim - inicio)) + " segundos pra rodar na TPU")
+	inicio = time.perf_counter()
+	freq_yin = librosa.yin(audio.astype("float32"), sr = sr, fmin = 65, fmax = 2500, frame_length = 2822, hop_length = int((sr / 1000) * 10), center = True)
+	fim = time.perf_counter()
 
+	print("Levou " + str((fim - inicio)) + " segundos pra rodar com YIN")
 
-inicio = time.perf_counter()
-freq_yin = librosa.yin(audio.astype("float32"), sr = sr, fmin = 65, fmax = 2500, frame_length = 2822, hop_length = int((sr / 1000) * 10), center = True)
-fim = time.perf_counter()
+	plt.plot(np.linspace(0, len(audio) / sr, len(freq_yin)), freq_yin, color = "green", label = "YIN", alpha = 0.3)
 
-print("Levou " + str((fim - inicio)) + " segundos pra rodar com YIN")
-
-plt.plot(np.linspace(0, len(audio) / sr, len(freq_yin)), freq_yin, color = "green", label = "YIN", alpha = 0.3)
-
-plt.legend()
-plt.xlabel("Tempo (s)")
-plt.ylabel("Frequência fundamental (Hz)")
-plt.title("Comparação: Predições do modelo completo, quantizado (TPU) e YIN")
-plt.show()
+	plt.legend()
+	plt.xlabel("Tempo (s)")
+	plt.ylabel("Frequência fundamental (Hz)")
+	plt.title("Comparação: Predições do modelo completo, quantizado (TPU) e YIN")
+	plt.show()
+     
+media_cpu, media_tpu, tamanhos_entrada = compara_input_aleatorio()
+np.savez("compara_performance.npz", media_cpu = media_cpu, media_tpu = media_tpu, tamanhos_entrada = tamanhos_entrada)

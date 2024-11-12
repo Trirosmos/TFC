@@ -15,7 +15,7 @@ from voice_manager_threads import voice_envelope, voice_note
 
 grava_queues = []
 
-for i in range(0, num_voices):
+for i in range(0, num_voices + 1):
 	grava_queues.append(queue.Queue())
 
 def feedback(p):
@@ -26,9 +26,20 @@ def feedback(p):
     format=pyaudio.paFloat32, channels=1, rate=sr, output=True, frames_per_buffer = amostras_bloco
 	)
 
+	audio_gerado = np.empty(1)
+
 	while(True):
 		novo_bloco = np.frombuffer(stream.read(amostras_bloco), dtype=np.float32).reshape(-1, ) * 0.6
 		player.write(novo_bloco, amostras_bloco)
+		audio_gerado = np.concatenate((audio_gerado, novo_bloco.squeeze()))
+
+		try:
+			grava_audio = grava_queues[num_voices].get(False)
+			wavfile.write("voz_base.wav", sr, audio_gerado)
+			print("Salvou arquivo da voz base")
+			break
+		except queue.Empty:
+			pass
 
 	stream.stop_stream()
 	stream.close()

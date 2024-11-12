@@ -2,6 +2,7 @@ from threading import Timer
 from utils import delete_last_line
 from consts import num_voices
 import rtmidi
+import numpy as np
 
 active_notes = []
 envelope_minimum = -20
@@ -46,12 +47,13 @@ def run_envelopes():
 			if(voice_envelope[v] >= 0):
 				voice_envelope[v] = 0
 				voice_state[v] = "decay"
+				voice_envelope[v] += np.log(sustain) / (decay / envelope_update_period)
 			else:
 				voice_envelope[v] += (-envelope_minimum) / (attack / envelope_update_period)
 		
 		if(estado == "decay"):
-			if(voice_envelope[v] > sustain):
-				voice_envelope[v] -= (1 - sustain) / (decay / envelope_update_period)
+			if(np.exp(voice_envelope[v]) > sustain):
+				voice_envelope[v] += np.log(sustain) / (decay / envelope_update_period)
 			else:
 				voice_state[v] = "sustain"
 		
