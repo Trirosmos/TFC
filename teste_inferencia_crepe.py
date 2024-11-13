@@ -359,23 +359,28 @@ def compara_input_aleatorio():
 	media_cpu = []
 	tamanhos_entrada = []
      
-	for c in range(1, 20):
+	for c in range(0, 20):
 		medidas_tpu = []
 		medidas_cpu = []
-		tamanho_vetor_entrada = int(1024 + ((102400 - 1024)/20) * c)
+		tamanho_vetor_entrada = int(1024 + ((6144 - 1024)/20) * c)
           
-		for t in range(0, 10):
+		for t in range(0, 5):
 			entrada = (np.random.rand(tamanho_vetor_entrada) * 2) - 1
                
+			predict(entrada, 16000, "medium", viterbi=True, center=True, step_size=10, verbose=0)
 			inicio = time.perf_counter()
 			predict(entrada, 16000, "medium", viterbi=True, center=True, step_size=10, verbose=0)
 			fim = time.perf_counter()
+			print("Tempo CPU: " + str(fim - inicio))
                
 			medidas_cpu.append(fim - inicio)
-               
+
+			predict_tpu(entrada, 16000, interpreter, viterbi=True, center = False, step_size=10, verbose=0)
 			inicio = time.perf_counter()
-			predict_tpu(entrada, 16000, interpreter, viterbi=True, center=True, step_size=10, verbose=0)
+			predict_tpu(entrada, 16000, interpreter, viterbi=True, center = False, step_size=10, verbose=0)
 			fim = time.perf_counter()
+			print("Tempo TPU: " + str(fim - inicio))
+			print("Duração da entrada: " + str(tamanho_vetor_entrada / 16000))
                
 			medidas_tpu.append(fim - inicio)
                   

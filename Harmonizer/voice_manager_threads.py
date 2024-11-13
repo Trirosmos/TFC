@@ -26,6 +26,7 @@ for v in range(num_voices):
 	voice_note.append(-1)
 
 def print_envelope_state():
+	return
 	global voice_envelope
 	delete_last_line()
 	print(voice_envelope)

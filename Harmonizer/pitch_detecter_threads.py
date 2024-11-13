@@ -39,9 +39,9 @@ def get_f0():
 		if(len(novo_bloco) < equivalente_1024_amostras):
 			novo_bloco = np.concatenate((novo_bloco, np.zeros(equivalente_1024_amostras - len(novo_bloco))))
 
-		inicio = time.time()
+		inicio = time.perf_counter()
 		#_, frequency, confidence, activation = predict(taken_chunk, sr, "medium", viterbi=True, center=True, step_size=(latencia_pitch * 1000), verbose=0)
 		_, frequency, confidence, activation = predict_tpu(novo_bloco, sr, interpreter, viterbi=True, center=False, step_size = int(1000/(16000 / amostras_pitch)), verbose=0)
-		fim = time.time()
+		fim = time.perf_counter()
 		for q in crepe_pitch_out_queues:
 			q.put([frequency[0], confidence[0]])
