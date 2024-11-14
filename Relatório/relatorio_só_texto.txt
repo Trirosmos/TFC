@@ -1,0 +1,289 @@
+\section{Introdução}
+
+\subsection{\textit{Harmonizer}}
+
+O nome \textit{Harmonizer} foi introduzido em 1975 pela \textit{Eventide, Inc} ao apresentar o \textit{H910}, um processador de áudio capaz de modificar a frequência fundamental dos sinais recebidos \cite{eventide_1975}. A empresa continua detendo a marca registrada \cite{eventide_marca}.
+
+
+Diferentemente de outras formas de alterar a frequência fundamental de um sinal disponíveis à época, o \textit{H910} era capaz de executar o processamento em tempo real e sem alterar a duração do sinal \cite{h910_pitch}.
+
+O processador rapidamente se tornou popular, sendo utilizado por nomes como Jon Anderson, vocalista da banda \textit{Yes}, Frank Zappa e Tony Visconti, produtor que trabalhou com David Bowie \cite{h910_plugin}.
+
+Mais recentemente, o termo \textit{harmonizer} passa a ser utilizado de forma metonímica para referir-se a \textit{softwares} ou equipamentos que permitem combinar um sinal com uma versão deste cuja frequência fundamental foi alterada, permitindo a criação de harmonias a partir de um único sinal \cite{tc_electronic}\cite{waves_harmony}. 
+
+Em particular, citamos como inspiração para esse projeto a implementação de \textit{harmonizer} criada por Ben Bloomberg para o cantor, multi-instrumentalista e compositor Jacob Collier \cite{danny_boy}\cite{ben_bloomberg}. Diferentemente do \textit{H910}, essa implementação permite que se especifique a frequência fundamental alvo que se deseja que o sinal de saída tenha, ao invés de somente a razão entre as frequências fundamentais do sinal de entrada e de saída. Adicionalmente, essa implementação é polifônica e recebe as frequências fundamentais alvo de cada nota de saída através de comandos \textit{MIDI}.
+
+Para reproduzir esse efeito, é necessário não somente um \textit{phase vocoder} que permita alterar dinâmicamente a frequência fundamental do sinal de entrada como um método de detecção de frequência fundamental que permite informar ao \textit{phase vocoder} qual deve ser a razão $f_a/f_i$ entre as frequências fundamentais do sinal de entrada e de saída.
+
+\subsection{\textit{Phase Vocoders}}
+
+Em um \textit{harmonizer}, procuramos por técnicas que modifiquem a frequência fundamental do sinal de interesse mas mantenham suas características de timbre e sua duração. As abordagens mais comuns para esse problema podem ser divididas em duas categorias: as que se baseiam no algoritmo \textit{overlap and add} e as que se baseiam em \textit{phase vocoders} \cite{review_tsm}.
+
+Os algoritmos de \textit{pitch shifting} baseados em variações de \textit{overlap and add} operam diretamente no domínio do tempo. Nesses, o sinal de entrada $x(n)$ é dividido em $m$ trechos curtos $x_m(r)$, geralmente de duração de dezenas de milisegundos. Driedger e Müller\cite{review_tsm} definem cada trecho como:
+
+Onde $H_a$ é a distância, em amostras, entre o começo de $x_m$ e $x_{m + 1}$ e $N$ é o número de amostras em cada trecho.
+
+Os trechos de áudio podem então ser deslocados no tempo e o valor de suas amostras somados. Seja $H_s$ a nova distância entre o início de blocos de áudio adjacentes. Se $H_s < H_a$, temos que o sinal resultante terá menor duração que o sinal de entrada. Por outro lado, $H_s > H_a$ resultará em um sinal mais " alongado " no tempo.
+
+Esperamos, no entanto, que a frequência fundamental do sinal permança inalterada, uma vez que o período do sinal foi preservado localmente em cada bloco de áudio.
+
+O sinal resultante pode então ser reamostrado de forma a resultar em áudio com a mesma duração do de origem mas com frequência fundamental distinta.
+
+A forma mais simples do algoritmo \textit{overlap and add} (\textit{OLA}) não garante, no entanto, a preservação de padrões periódicos locais do áudio. Além disso, há a aparição de artefatos nos pontos em que há sobreposição de blocos de áudio.
+
+Diversas propostas, como \textit{WSOLA}, \textit{SOLA} e \textit{PSOLA} buscam modificar o espaçamento bloco a bloco de forma a reduzir os artefatos enquanto mantém a distância média $H_s$. No entanto, de forma geral, algoritmos baseados em \textit{phase vocoders} produzem menos artefatos para sinais majoritariamente periódicos \cite{review_tsm}.
+
+Inicialmente, a ideia por trás dos \textit{phase vocoders} foi proposta no âmbito de telecomunicações\cite{phase_vocoder_tutorial}. Na proposta de Flanagan e Golden\cite{flanagan1966phase}, um sinal de voz seria representado pelas amplitudes e fase das componentes em frequência nele presentes em curtas janelas de tempo. Uma vez que essas quantidades variam mais lentamente que a amplitude do sinal no tempo, tal abordagem seria capaz de reduzir a quantidade de dados necessária para transmitir o sinal.
+
+Posteriormente, tal representação mostrou-se útil ao processamento de sinais musicais, uma vez que permite modificar características de timbre, \textit{pitch} e duração do sinal de forma independente.
+
+Na abordagem de \textit{phase vocoder}, cada bloco $x_m(r)$ é janelado no tempo e então é aplicada a ele a transformada rápida de Fourier (\textit{FFT}) ou forma similar da transformada discreta de Fourier. O método de \textit{phase vocoder} utiliza a informação de fase presente no espectrograma gerado pela \textit{FFT} para obter estimativas das frequências instantâneas em cada raia da \textit{FFT}. Esse procedimento é necessário uma vez que a resolução em frequência oferecida pela \textit{FFT} de um bloco curto de amostras é limitada.
+
+Com as estimativas de frequência instantâneas calculadas, as fases de cada componente em frequência são ajustadas ao deslocar os blocos no tempo para que não haja descontinuidades de fase nas sobreposições de blocos.
+
+Como dual das técnicas baseadas em \textit{OLA}, as técnicas baseadas em \textit{phase vocoders} garantem a continuidade de sinais periódicos modificados pelo algoritmo. No entanto, transientes, isto é, momentos em que há mudanças abruptas na fase das componentes em frequência do sinal, não são bem preservados.
+
+Surgem então diversos métodos para detectar transientes e permitir que haja descontinuidade de fase no espectrograma modificado nesses instantes em específico.
+
+\subsection{Deteção de \textit{pitch}}
+
+\textit{Pitch} ou altura é entendida como um atributo da sensação de audição que permite diferenciar sons numa escala entre sons baixos e sons altos \cite{hearing}. Essa é uma sensação subjetiva difícil de ser quantificada mas que frequentemente está correlacionada à frequência fundamental do sinal, que por sua vez é uma quantidade física e mensurável \cite{pitch_perception}.
+
+A informação de \textit{pitch} é essencial à prosódia da fala \cite{yet_another} e, em línguas tonais, auxilia na diferenciação de categorias lexicais. Portanto, um sistema que consiga obter estimativas do \textit{pitch} de um sinal de áudio a partir de suas características acústicas é útil ao desenvolvimento de sistemas de reconhecimento de fala.
+
+Em contextos musicais, estimativas de \textit{pitch} podem ser utilizadas como parte de um sistema de transcrição automática, ou em outras formas de processamento como a obtenção de envoltórias espectrais e reconhecimento de timbre de instrumentos \cite{yin}.
+
+Há diversas técnicas voltadas para a estimação de frequência fundamental de um sinal de áudio. De forma geral, essas podem ser divididas em três grupos: um que se baseia em informação temporal, um que se utiliza das características em frequência do sinal e outro composto por abordagens híbridas \cite{comparative_analysis}.
+
+Algoritmos de detecção de \textit{pitch} que operam diretamente no domínio do tempo baseiam-se primariamente na sequência de autocorrelação do sinal sob análise. Dado um bloco $X_m(r)$ com $N$ amostras do sinal de entrada, definimos a sequência de autocorrelação $R(k)$ do bloco como:
+
+Onde $k$ é o atraso de autocorrelação. Assumindo que $X_m(r)$ seja um trecho de um sinal periódico, a quantidade $R(k)$ deve se maximizar quando $k$ for tal que $\tau \approx k \cdot \frac{1}{f_s}$, onde $\tau$ é o período do sinal e $f_s$ é a frequência de amostragem.
+
+No entanto, a abordagem em que se assume que o maior valor de $R(k)$ está sempre diretamente relacionado ao período do sinal apresenta pouca robustez, sobretudo para sinais de baixa frequência e tamanhos de janela $N$ relativamente pequenos \cite{comparative_analysis}. 
+
+Algoritmos como \textit{AUTOC}, \textit{YIN} e \textit{PYIN} aplicam heurísticas a essa abordagem básica a fim de torná-la mais precisa e robusta à presença de ruído \cite{yin}\cite{pyin} \cite{comparative_analysis}.
+
+Mais recentemente, surgem algoritmos de detecção de \textit{pitch} baseados em redes neurais artificiais, como \textit{CREPE}\cite{crepe} e \textit{SPICE}\cite{spice}. Tais algoritmos substituem as heurísticas por uma abordagem em que a função que mapeia o vetor de amostras $S(n)$ em uma frequência fundamental é obtida diretamente com base em dados.
+
+\subsection{Protocolo MIDI}
+
+O protocolo MIDI (\textit{Musical Instrument Digital Interface}) foi inicialmente proposto como uma forma de normatizar a comunicação entre sintetizadores de diferentes fabricantes. Com a introdução do formato \textit{General MIDI}, tornou-se também uma forma comum de representar em arquivos digitais informações de performance musical \cite{tutorial_on_midi}.
+
+Inicialmente, mensagens MIDI eram transmitidas por meio de uma interface serial assíncrona a uma taxa de $31,25$ Kilobits por segundo \cite{tutorial_on_midi}. Mais recentemente, produtos com interface \textit{USB} podem transmitir sequências de comandos MIDI diretamente para computadores pessoais através da especificação \textit{USB MIDI Class} \cite{usb_midi}.
+
+Podemos citar como principais comandos do protocolo MIDI os comandos de eventos \textit{Note On} e \textit{Note Off}. O primeiro indica o início da execução de uma nota e inclui também informação sobre a dinâmica com que a nota foi executada, isto é, uma medida relacionada à intensidade sonora. Os comandos \textit{Note Off} por sua vez indicam quando uma nota se encerra, isto é, no caso de um instrumento de teclas, quando a tecla deixa de ser pressionada \cite{painless_tutorial}.
+
+Por sua ampla aceitação e relativa simplicidade, o protocolo MIDI permite desacoplar a interface entre quem executa a música e o dispositivo que de fato produz os sons escutados. Com isso, surge uma vasta gama de \textit{controladores MIDI}, dispositivos que permitem ao usuário gerar sequências de comandos MIDI utilizando diversos tipos de interface física.
+
+\subsection{Geradores de envoltória (ou \textit{envelope})}
+
+Num sintetizador, o gerador de envoltórias (ou gerador de \textit{envelopes}, empréstimo do inglês) é responsável por modular a amplitude do sinal gerado em função do tempo. Tal modulação permite que o som sintetizado imite a envoltória de um instrumento real ou crie sons que evoluem temporalmente, de forma geral \cite{analog_days_moog}.
+
+Trata-se, portanto, de um componente básico frequentemente presente em sintetizadores subtrativos, FM ou aditivos. Geradores de envoltória nesses instrumentos frequentemente são baseados no modelo \textit{ADSR}, em que a envoltória é dada por uma função paramétrica definida por partes que pode ser dividida em quatro fases distintas:
+
+Esse modelo de gerador de envoltórias permite simular a envoltória de uma vasta gama de sons, desde sons produzidos por instrumentos em que notas são sustentadas, como instrumentos de sopro ou cordas friccionadas, até instrumentos em que o perfil de amplitude é similar ao de uma exponencial decrescente, como instrumentos percussivos ou de cordas dedilhadas.
+
+\section{Objetivos} 
+
+Propôs-se a elaboração de um software em \textit{Python} que implementa um \textit{harmonizer}. Isto é, a aplicação deve, em tempo real:
+
+Escolheu-se o algoritmo \textit{CREPE}\cite{crepe} para estimação de frequência fundamental em tempo real. A inferência do algoritmo é executada num acelerador de redes neurais \textit{Coral Edge TPU} \cite{edge_tpu}. 
+
+As demais etapas de processamento foram realizadas num computador pessoal com CPU \textit{Intel Core i5-8365U}, 16 $GiB$ de RAM e disco SSD padrão \textit{NVME}.
+
+\section{Componentes da aplicação}
+
+\subsection{PyAudio}
+
+A biblioteca \cite{pyaudio}, cujo código é disponibilizado sob licença MIT, oferece um módulo multiplataforma para capturar e reproduzir sinais de áudio. 
+
+A bibilioteca facilita o processamento de áudio em tempo real e foi utilizada no \textit{harmonizer} proposto para receber os segmentos do áudio de entrada e reproduzir as versões processadas desse.
+
+\subsection{pyrtmidi}
+
+O módulo \textit{pyrtmidi}\cite{pyrtmidi} fornece uma interface para a biblioteca \textit{rtmidi}. Essa, por sua vez, permite à aplicação receber comandos enviados por mensagens MIDI tanto de dispositivos MIDI virtuais (i.e, outras aplicações) quanto de dispositivos de hardware, como controladores e teclados MIDI.
+
+A bibiloteca, de código aberto, está disponível sob licença MIT e é compatível com \textit{Linux}, \textit{Windows} e \textit{MacOS}.
+ 
+\subsection{Algoritmo CREPE}
+
+\subsubsection{O algoritmo}
+
+O algoritmo CREPE \cite{crepe} (\textit{Convolutional Representation for Pitch Estimation}) se enquadra numa nova classe de algoritmos de detecção de \textit{pitch} baseados em redes neurais artificiais.
+
+Especificamente, CREPE consiste numa rede neural convolucional profunda cuja arquitetura é apresentada na figura \ref{fig:arquitetura_crepe}. A entrada da rede consiste em $1024$ amostras do sinal sob análise, diretamente no domínio do tempo. As seis camadas convolucionais da rede transformam então esse vetor de amostras numa representação em espaço latente de dimensão $2048$.
+
+Finalmente, a representação em espaço latente é transformada em uma saída categórica por uma camada densa com ativação \textit{softmax} cujo vetor de saída tem dimensão $360$. Cada entrada no vetor de saída representa a probabilidade estimada de que a frequência fundamental do sinal de entrada esteja num determinado intervalo de frequências. A rede é treinada para que o vetor de saídas aproxime uma função densidade de probabilidade Gaussiana.
+
+Nota-se que a rede é treinada de forma supervisionada, o que requer um banco de dados de áudios monofônicos com anotações de frequência fundamental instantânea extremamente precisas. Os bancos de dados utilizados consistem em dados sintetizados, fornecendo portanto anotações exatas de frequência fundamental. Parte dos bancos de dados foi gerada através do método descrito em \cite{analysis_synthesis} em que gravações de sons naturais são resintetizadas de forma que sua frequência fundamental seja conhecida.
+
+Comparado aos algoritmos PYIN\cite{pyin} e SWIPE\cite{swipe}, ambos baseados em abordagens não-neurais, o algoritmo CREPE apresentou melhor acurácia nas estimativas de frequência fundamental e maior estabilidade sob presença de ruído.
+
+\subsubsection{Inferência com acelerador neural \textit{Coral Edge TPU}}
+
+TPUs ou \textit{Tensor Processing Units} são uma nova classe de \textit{ASICs} (\textit{Application-Specific Integrated Circuit)} cuja arquitetura é projetada especificamente para tarefas de aprendizado de máquina. Em comparação com \textit{GPUs}, que são processadores de aspecto mais geral, \textit{TPUs} podem apresentar eficiência até $80$ vezes maior \cite{tpu_evaluation}.
+
+No \textit{harmonizer} proposto, o processamento do algoritmo CREPE é executado num acelerador de redes neurais \textit{Coral Edge TPU}, mostrado na figura \ref{fig:usb_accelerator}.
+O acelerador tem aplicação voltada à inferência de modelos profundos em dispositivos embarcados, portanto, com baixo consumo de energia e alta eficiência.
+
+Mesmo com potência total de $2 \: W$, a TPU é capaz de executar inferência de modelos como a $ResNet-50$ mais rapidamente que CPUs com potência dezenas de vezes maior \cite{performance}.
+
+Tal feito é possível parcialmente graças à relativa resiliência de redes neurais profundas à quantização de pesos \cite{nagel2021whitepaperneuralnetworkquantization}. Isto é, para inferência no acelerador, os pesos e ativações da rede devem ser convertidos de números de ponto flutuante em números inteiros de $8$ bits. Apesar da redução de precisão na representação numérica, a acurácia dos modelos pode ser similar à dos modelos em ponto flutuante, dada uma boa escolha de coeficientes de quantização \cite{sun2022deeplearningedgetpus}.
+
+No repositório do \textit{GitHub} do modelo CREPE \cite{github_crepe}, são disponibilizadas cinco versões distintas do modelo pré-treinado, listadas abaixo:
+
+\begin{itemize}
+    \item \textit{tiny}: Modelo com 487.096 parâmetros.
+    \item \textit{small}: Modelo com 1.629.192 parâmetros.
+    \item \textit{medium}: Modelo com 5.879.464 parâmetros.
+    \item \textit{large}: Modelo com 12.751.176 parâmetros.
+    \item \textit{full}: Modelo com 22.244.328 parâmetros.
+\end{itemize}
+
+Essas diferem somente quanto à quantidade de \textit{kernels} em cada camada convolucional, sendo a versão \textit{full} a apresentada na figura \ref{fig:arquitetura_crepe}. Foi escolhida para a aplicação a versão \textit{medium} da rede, uma vez que essa é a versão com mais parâmetros que, depois de quantizada, ocupa menos de $8 \: MiB$, a quantidade total de \textit{SRAM} disponível no acelerador. A versão \textit{medium} do modelo apresenta os seguintes números de \textit{kernels} por camada:
+
+\begin{itemize}
+    \item Camada 1: 512 \textit{kernels}
+    \item Camada 2: 64 \textit{kernels}
+    \item Camada 3: 64 \textit{kernels}
+    \item Camada 4: 64 \textit{kernels}
+    \item Camada 5: 128 \textit{kernels}
+    \item Camada 6: 256 \textit{kernels}
+\end{itemize}
+
+O modelo foi quantizado utilizando o \textit{TensorFlow Lite}.
+
+A tempo de execução, a biblioteca \textit{PyCoral} permite a comunicação com a TPU, carregamento do modelo e processamento de inferências.
+
+\subsection{\textit{Rubber Band Library}}
+
+A biblioteca \textit{Rubber Band Library}\cite{rubber_band} implementa um \textit{phase vocoder} de alta qualidade. De código aberto, disponível sob licença GPL, a biblioteca possui \textit{bindings} para diversas linguagens. No \textit{harmonizer} proposto, foi utilizado o módulo \textit{pylibrb}\cite{pylibrb} que provê acesso de baixo nível à \textit{Rubber Band Library}.
+
+O \textit{phase vocoder} implementado pela biblioteca utiliza-se de diversas heurísticas, como detecção de transientes e interpolação de fator de alteração de frequência fundamental para maximizar a coerência de fase entre blocos adjacentes dos sinais gerados e simultaneamente preservar transientes do sinal.
+
+\section{Arquitetura da aplicação}
+
+O anexo I contém um diagrama da arquitetura completa do \textit{harmonizer} proposto. Aqui, serão discutidos aspectos específicos desta.
+
+\subsection{\textit{Threads} gestoras}
+
+O sub-sistema de \textit{threads} gestoras coordena as demais \textit{threads} da aplicação e é composta por:
+
+\begin{itemize}
+    \item \textit{Thread} de comandos MIDI: Recebe mensagens de dispositivos MIDI e, a partir destas, mantem uma lista de notas sendo tocadas no momento. Com a lista de notas ativas, atribui frequências fundamentais alvo $f_a$ a cada uma das \textit{threads} de \textit{phase vocoder}. Também é responsável por informar à \textit{thread} geradora de envoltórias sobre o início das fases de ataque e de \textit{release} de cada envoltória.
+    \item \textit{Thread} geradora de envoltória: Responsável por atualizar estado dos geradores de envoltória associados a cada \textit{thread} de \textit{phase vocoder}, além de efetivamente calcular os valores de amplitude correspondentes a cada estado.
+\end{itemize}
+
+\subsubsection{Gerador de envoltórias}
+
+Foi implementado no sistema um gerador de envoltórias individual para cada \textit{thread} de \textit{phase vocoder}. O gerador busca melhorar a qualidade do áudio sintetizado à medida que permite imitar a envoltória de amplitude do canto natural, mesmo que o sinal de entrada esteja numa região de amplitude aproximadamente constante.
+
+A cada instante $n$, a saída $e_k(n)$ do gerador de envoltórias para a k-ésima \textit{thread} de \textit{phase vocoder} é dada por $e^{s_k(n)}$.
+
+O parâmetro $s_k(n)$, por sua vez, é dado, para as fases de ataque e \textit{release} do gerador, pela relação recorrente:
+
+Onde $a$ e $s$ são os parâmetros de ataque e \textit{sustain} do gerador, $\alpha_{min}$ é constante que dá o valor mínimo de $s_k(n)$ e $\tau_e$ é o inverso da frequência de atualização do gerador de envoltórias. Temos que $\alpha_{min}$ deve ser negativa e os demais parâmetros positivos.
+
+Durante a fase de \textit{sustain}, $s_k(n) = s$. Já durante a fase de \textit{release}:
+
+Onde $r$ é também um parâmetro configurável do gerador.
+
+
+A Figura \ref{fig:saida_envoltoria} mostra a saída do gerador de envoltória para parâmetros $a = 0,2$, $d = 0,5$, $s = 0,1$, $r = 0,4$ e taxa de atualização do gerador de $200 \: Hz$
+
+\subsection{\textit{Threads} detectoras de \textit{pitch}}
+
+Sub-sistema composto por duas \textit{threads}:
+
+\begin{itemize}
+    \item \textit{Thread} de fila de amostras: Responsável por receber blocos de áudio da \textit{API} \textit{PyAudio} e enfileira-los para consumo pela \textit{thread} detectora de \textit{pitch} em si.
+    \item \textit{Thread} detectora de \textit{pitch}: Consome blocos de áudio capturados do dispositivo de entrada e os prepara para processamento pelo algoritmo CREPE, o que inclui normalizar a amplitude das amostras e filtrar e reamostrar os blocos para a frequência de amostragem esperada pelo CREPE. Faz então a comunicação com o acelerador de redes neurais através da \textit{API} \textit{PyCoral} e faz o pós-processamento dos dados, o que inclui o uso do algoritmo de Viterbi para obter estimativas refinadas da frequência fundamental baseado em estados anteriores do estimador e a seleção da frequência de maior probabilidade. As estimativas de frequência fundamental são então enviadas para filas individualizadas para cada \textit{thread} de \textit{phase vocoder}.
+\end{itemize}
+
+\subsection{\textit{Threads} de \textit{phase vocoder}}
+
+As \textit{threads} de \textit{phase vocoder} são efetivamente responsáveis pela geração de áudio no sistema.
+
+Recebem das \textit{threads} gestoras e da \textit{thread} detectora de \textit{pitch} informações de amplitude de seu gerador de envoltória, frequência fundamental alvo $f_a$ e frequência fundamental do áudio de entrada $f_i$.
+
+Buscam então blocos do áudio de entrada da \textit{API} \textit{PyAudio} que são enviados à biblioteca \textit{Rubber Band Library}, juntamente com a razão $f_a/f_i$ para o bloco. A amplitude final do áudio recebido do \textit{phase vocoder} é ajustada conforme o valor recebido pelo gerador de envoltória e o bloco de áudio resultante é enviado para reprodução pela \textit{PyAudio}.
+
+\section{Resultados}
+
+\subsection{Análise descritiva}
+
+Foram feitos diversos testes com o sistema, utilizando-se tanto um controlador MIDI em \textit{hardware} quanto sinais MIDI provenientes de outras aplicações de \textit{software}.
+
+Os testes foram feitos com voz masculina grave, isto é, de frequência fundamental entre $70$ e $300 \: Hz$.
+
+Notou-se que, em média, o sistema é capaz de produzir vozes sintetizadas similares ao sinal de entrada natural. No entanto, a síntese não é livre de artefatos, sendo que a execução de diversas instâncias do \textit{phase vocoder} frequentemente exaure os \textit{buffers} de saída do \textit{PyAudio}, resultando em \textit{cliques} audíveis.
+
+Adicionalmente, há flutuações ocasionais na frequência fundamental dos sinais sintetizados. Atribuímos esse efeito a blocos específicos do sinal de entrada que aumentam a incerteza das estimativas do CREPE. As \textit{threads} sintetizando os sinais de saída rejeitam estimativas com menos de $30\%$ de certeza, a fim de amenizar os efeitos do ruído no sinal de entrada.
+
+\subsection{Comparação: TPU vs CPU}
+
+Comparamos a performance de inferência do modelo CREPE da TPU e CPU em dois aspectos distintos: tempo de processamento e acurácia das estimativas de frequência fundamental.
+
+\subsubsection{Tempo de processamento}
+
+Para avaliar o tempo de processamento do algoritmo, foram feitos $20$ ensaios. Em cada ensaio, um vetor de entrada de variáveis aleatórias com distribuição uniforme no intervalo $[-1,1)$ é gerado. O tamanho do vetor de entrada no n-ésimo ensaio é dado por $\lfloor 1024 + \frac{5120}{20} \cdot n \rfloor$, onde $\lfloor \cdot \rfloor$ denota a função piso e sendo $n$ inicializado como $n = 0$.
+
+Em cada ensaio, foram executadas cinco inferências na TPU e cinco na CPU usando o mesmo vetor de entrada e os tempos médios de execução para cada sistema foram obtidos, em função do tamanho do vetor de entrada. Os resultados dos ensaios são mostrados na Figura \ref{fig:compara_performance}. Na figura, assumimos uma taxa de amostragem $f_s = 16 \: kHz$, taxa utilizada internamente pelo algoritmo CREPE.
+
+Notamos que, para essa versão do algoritmo CREPE (\textit{medium}), a inferência em tempo real com latência considerada aceitável é possível somente com auxílio da TPU.
+
+Para sinais com duração maior que $144 \: ms$, a CPU passa a executar as inferências mais rapidamente. Isso indica que há um \textit{overhead} por inferência maior para a CPU do que para a TPU, apesar de em média a CPU possuir maior capacidade de processamento.
+
+\subsubsection{Acurácia}
+
+Determinamos o impacto da quantização do modelo na acurácia das estimativas utilizando o \textit{dataset} Bach10 \cite{bach10}, que contém anotações de frequência fundamental.
+
+O \textit{dataset} é composto por $10$ gravações de corais de Bach. Para cada peça, são disponibilizadas gravações individuais de cada um dos instrumentos monofônicos utilizados na gravação, a saber: violino, clarinete, saxofone e fagote. 
+
+As anotações de frequência fundamental são fornecidas para janelas de $43 \: ms$, espaçadas de $10 \: ms$ entre si. Janelas cuja potência RMS normalizada é menor que $0,075$ recebem uma anotação indicando que não há frequência fundamental naquele trecho da gravação.
+
+Os erros de estimação dos algoritmos YIN, CREPE e CREPE quantizado são calculados em \textit{cents} ou centésimos de semitom. Para uma estimativa de frequência fundamental $f_e$, o erro $e(f_e)$ em \textit{cents} é dado por:
+
+
+Onde $f_r$ é a frequência fundamental de referência, dada pela anotação para aquela janela.
+
+No cômputo, são descartados os valores de erro calculados para janelas em que, segundo a anotação correspondente, não há frequência fundamental presente. Isto é, são desconsiderados os momentos de silêncio.
+
+A Tabela \ref{tab:compara_yin_crepe} resume os resultados da comparação, em que é considerado o erro no \textit{dataset} como um todo.
+
+Há uma piora significativa na acurácia do modelo quantizado em relação ao modelo em precisão completa. Não obstante, o modelo quantizado apresenta acurácia média maior que a do algoritmo YIN.
+
+Destacamos que a média do quartil superior de erro para o algoritmo YIN é mais de duas vezes superior à do modelo quantizado, indicando uma maior consistência nas estimativas do modelo CREPE em geral.
+
+A Figura \ref{fig:acuracia_crepe_yin} compara as estimativas obtidas com cada algoritmo para um mesmo sinal.
+ 
+\subsection{Avaliação dos sinais sintetizados}
+
+Para avaliar os sinais gerados pelo \textit{phase vocoder}, foi feita uma comparação entre a gravação de uma nota cantada gerada naturalmente e uma gravação sintetizada pelo \textit{vocoder}.
+
+Num primeiro momento, registrou-se uma gravação da nota cantada Mi-4, de frequência fundamental $f_{0_a} = 164,8138 \: Hz$. Em seguida, cantou-se a nota Mi-3, de frequência fundamental $f_{0_b} = 82,4069 Hz$ e, através de comandos MIDI, foi pedido ao sistema que sintetizasse a partir do sinal de entrada um sinal com frequência fundamental igual à $f_{0_a}$, isto é, de $164,8138 \: Hz$.
+
+Os espectrogramas dos sinais natural e sintetizado são comparados nas Figuras \ref{fig:especs}
+ e \ref{fig:especs_diff}.
+
+Da comparação, destacamos:
+
+\begin{itemize}
+    \item Falta de harmônicos de ordem superior no sinal sintetizado: Percebemos que a potência média do sinal sintetizado para frequências maiores que $3 \: kHz$ é muito menor que no sinal natural. Esse aspecto revela uma limitação do \textit{phase vocoder} utilizado.
+    \item Oscilações de frequência fundamental: Notamos que, no sinal sintetizado, há instantes flutuação de frequência fundamental, acompanhada por oscilações em todos os harmônicos correspondentes. Atribuímos esses artefatos ao atraso presente entre o sinal de entrada e as estimativas de frequência fundamental geradas a partir deste.
+\end{itemize}
+
+Juntos, esses dois fatores geram artefatos audíveis que prejudicam a naturalidade do som sintetizado.
+
+\section{Conclusão}
+
+O presente trabalho demonstrou a viabilidade da construção de um \textit{harmonizer} para operação em tempo real utilizando algoritmos de deteção de \textit{pitch} neurais e \textit{phase vocoders}.
+
+Foi possível também avaliar as vantagens do uso de aceleradores neurais em relação à execução de inferência de modelos neurais em CPUs de uso geral.
+
+
+
+
+
+
+

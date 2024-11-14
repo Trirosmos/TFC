@@ -1,0 +1,44 @@
+#Resumo da Introdução#
+
+O trabalho propõe a implementação de um harmonizer digital, um processador de áudio capaz de criar harmonias a partir de um único sinal de entrada.
+
+A pesquisa se baseia no conceito original de harmonizer, introduzido pela Eventide na década de 1970, e em implementações mais recentes, como a de Ben Bloomberg para Jacob Collier. A principal característica da implementação proposta é a capacidade de controlar a frequência fundamental das harmonias geradas em tempo real, utilizando o protocolo MIDI.
+
+A técnica principal utilizada para modificar a frequência fundamental de um sinal é o phase vocoder. Essa técnica permite alterar a altura de um som sem afetar significativamente seu timbre ou duração. O trabalho apresenta uma comparação entre phase vocoders e outras técnicas de pitch shifting, como os algoritmos baseados em overlap and add.
+
+A detecção da frequência fundamental do sinal de entrada é outro componente essencial do harmonizer. O trabalho discute diferentes métodos de detecção de pitch, incluindo aqueles baseados em autocorrelação, transformada de Fourier e redes neurais artificiais.
+
+O protocolo MIDI é utilizado para controlar o harmonizer em tempo real. O protocolo MIDI permite enviar informações sobre as notas a serem tocadas e suas respectivas frequências fundamentais.
+
+Por fim, o trabalho aborda o conceito de geradores de envoltória. Esses geradores são utilizados para modelar a evolução temporal da amplitude de um som e são componentes comuns em sintetizadores.
+
+Em resumo, o objetivo do trabalho é desenvolver um harmonizer digital versátil e controlável, utilizando técnicas de processamento de áudio avançadas e o protocolo MIDI.
+
+Palavras-chave: harmonizer, phase vocoder, detecção de pitch, MIDI, processamento de áudio.
+
+#Objetivos#
+
+O objetivo principal deste trabalho é desenvolver um software em Python capaz de criar harmonias em tempo real a partir de um único sinal de áudio. Para alcançar este objetivo, o trabalho propõe utilizar o algoritmo CREPE para a estimação da frequência fundamental, um acelerador neural Coral Edge TPU para otimizar o processamento e a biblioteca Rubber Band para a implementação do phase vocoder.
+
+#Componentes da Aplicação#
+
+    PyAudio: Biblioteca utilizada para capturar e reproduzir áudio em tempo real.
+    pyrtmidi: Permite a comunicação com dispositivos MIDI, tanto virtuais quanto físicos.
+    Algoritmo CREPE:
+        Rede neural convolucional profunda para estimação precisa da frequência fundamental.
+        Utiliza um banco de dados de áudios monofônicos com anotações precisas para treinamento.
+        A inferência é realizada em um acelerador neural Coral Edge TPU para otimizar o desempenho.
+    Rubber Band Library:
+        Implementa um phase vocoder de alta qualidade para modificar a frequência fundamental do sinal.
+        Utiliza diversas heurísticas para preservar a qualidade do áudio.
+
+Em resumo:
+
+O trabalho apresenta uma implementação detalhada de um harmonizador digital, desde a captura do sinal de áudio até a geração das harmonias em tempo real. A escolha de cada componente da aplicação foi feita com base em sua eficiência e capacidade de atender aos requisitos do projeto. O uso do algoritmo CREPE em conjunto com o acelerador neural Coral Edge TPU garante uma estimação precisa e rápida da frequência fundamental, enquanto a Rubber Band Library proporciona um processamento de alta qualidade do sinal de áudio.
+
+Pontos-chave:
+
+    Tempo real: O sistema é projetado para operar em tempo real, permitindo a criação de harmonias instantaneamente.
+    Precisão: O algoritmo CREPE garante uma alta precisão na estimação da frequência fundamental.
+    Eficiência: O uso do acelerador neural Coral Edge TPU otimiza o desempenho do sistema.
+    Qualidade: A Rubber Band Library garante a preservação da qualidade do áudio durante o processamento.

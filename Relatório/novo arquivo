@@ -1,0 +1,9 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.io import loadmat
+
+f0_1 = loadmat("../Bach10_v1.1/01-AchGottundHerr/01-AchGottundHerr-GTF0s.mat")["GTF0s"]
+
+print(np.shape(f0_1))
+
+

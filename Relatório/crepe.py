@@ -8,6 +8,18 @@ from scipy.io import wavfile
 
 import time
 
+try:
+	from pycoral.utils import edgetpu
+	interpreter = edgetpu.make_interpreter("../crepe_medium_edgetpu.tflite")
+	interpreter.allocate_tensors()
+except:
+	pass
+
+from pycoral.utils import dataset
+from pycoral.adapters import common
+from pycoral.adapters import classify
+import pycoral
+
 import librosa
 
 # store as a global variable, since we only support a few models for now
@@ -100,7 +112,7 @@ def to_local_average_cents(salience, center=None):
         product_sum = np.sum(
             salience * to_local_average_cents.cents_mapping[start:end])
         weight_sum = np.sum(salience)
-        return product_sum / weight_sum
+        return product_sum / (weight_sum + 2.22044604925e-16)
     if salience.ndim == 2:
         return np.array([to_local_average_cents(salience[i, :]) for i in
                          range(salience.shape[0])])
@@ -198,12 +210,7 @@ def get_activation(audio, sr, model_capacity='full', center=True, step_size=10,
     frames /= np.clip(np.std(frames, axis=1)[:, np.newaxis], 1e-8, None)
 
     # run prediction and convert the frequency bin weights to Hz
-    inicio = time.perf_counter()
     output = model.predict(frames, verbose=verbose)
-    fim = time.perf_counter()
-    print("Levou " + str((fim - inicio) / len(frames)) + " segundos por frame pra rodar na CPU")
-    
-    print("Shape da ativação do modelo original: " + str(np.shape(output)))
     return output
 
 def get_activation_tpu(audio, sr, instancia, center=True, step_size=10,
@@ -243,9 +250,6 @@ def get_activation_tpu(audio, sr, instancia, center=True, step_size=10,
 	instancia.set_tensor(input_details['index'], frames)
 	instancia.invoke()
 	output = instancia.get_tensor(output_details['index'])
-                  
-	print("Shape da ativação do modelo quantizado: " + str(np.shape(output)))
-
 	return output
 
 
@@ -307,13 +311,26 @@ def predict(audio, sr, model_capacity='full',
 
     return time, frequency, confidence, activation
 
-
-directory = os.fsencode("Representative Dataset/")
+def predict_tpu(audio, sr, instancia,
+            viterbi=False, center=True, step_size=10, verbose=1):
     
-def get_pitch(audio, sr):
-	tempo, freq, conf, act = predict(audio, sr, "medium", viterbi=True, center=True, step_size=10, verbose=1)
-	plt.plot(tempo, freq, color="blue", label = "Saída CPU", alpha = 0.3)
+    activation = get_activation_tpu(audio, sr, instancia,
+                                center=center, step_size=step_size,
+                                verbose=verbose)
+    confidence = activation.max(axis=1)
 
-tiny_model = build_and_load_model("medium")
+    if viterbi:
+        cents = to_viterbi_cents(activation)
+    else:
+        cents = to_local_average_cents(activation)
 
-print(tiny_model.summary())
+    frequency = 10 * 2 ** (cents / 1200)
+    frequency[np.isnan(frequency)] = 0
+
+    time = np.arange(confidence.shape[0]) * step_size / 1000.0
+
+    return time, frequency, confidence, activation
+
+#predict(entrada, 16000, "medium", viterbi=True, center=True, step_size=10, verbose=0)
+#predict_tpu(entrada, 16000, interpreter, viterbi=True, center = False, step_size=10, verbose=0)
+    
